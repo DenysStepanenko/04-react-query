@@ -1,9 +1,5 @@
 import axios from 'axios';
-import type { Movie } from '../types/movie';
-
-interface TmdbApiResponse {
-  results: Movie[];
-}
+import type { MoviesResponse } from '../types/movie';
 
 const API_TOKEN = import.meta.env.VITE_TMDB_TOKEN;
 
@@ -14,17 +10,17 @@ const apiClient = axios.create({
   },
 } );
 
-export const fetchMovies = async (query: string): Promise<Movie[]> => {
-  const response = await apiClient.get<TmdbApiResponse>(
+export const fetchMovies = async (query: string, page: number = 1): Promise<MoviesResponse> => {
+  const response = await apiClient.get<MoviesResponse>(
     '/search/movie',
     {
       params: {
         query,
+        page,
         include_adult: false,
         language: 'en-US',
-        page: 1,
       },
     }
   );
-  return response.data.results;
+  return response.data;
 };
