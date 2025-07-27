@@ -1,89 +1,109 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import ReactPaginate from 'react-paginate';
-import { Toaster, toast } from 'react-hot-toast';
+import { useState, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { fetchMovies } from '../../services/movieService';
+import type { Movie } from '../../types/movie';
 import SearchBar from '../SearchBar/SearchBar';
 import MovieGrid from '../MovieGrid/MovieGrid';
+import MovieModal from '../MovieModal/MovieModal';
 import Loader from '../Loader/Loader';
 import ErrorMessage from '../ErrorMessage/ErrorMessage';
-import MovieModal from '../MovieModal/MovieModal';
-import type { Movie } from '../../types/movie';
-import styles from './App.module.css';
 
 const App = () => {
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
-  // Используем useQuery для получения данных
   const {
     data: moviesData,
     isLoading,
-    isError,
-    error
+    error,
+    isSuccess,
   } = useQuery({
-    queryKey: ['movies', query, page],
-    queryFn: () => fetchMovies(query, page),
-    enabled: !!query, // Запрос выполняется только если есть query
-    staleTime: 5 * 60 * 1000, // Данные считаются свежими 5 минут
+    queryKey: ['movies', searchQuery, currentPage],
+    queryFn: () => fetchMovies(searchQuery, currentPage),
+    enabled: !!searchQuery,
+    placeholderData: keepPreviousData,
   });
 
-  const handleSearch = (searchQuery: string) => {
-    setQuery(searchQuery);
-    setPage(1); // Сбрасываем на первую страницу при новом поиске
+  // Обработка сообщений в useEffect для предотвращения множественных рендеров
+  useEffect(() => {
+    if (isSuccess && moviesData?.results && moviesData.results.length === 0) {
+      console.log('No movies found');
+    }
+  }, [isSuccess, moviesData?.results]);
+
+  useEffect(() => {
+    if (error) {
+      console.error('Failed to load movies:', error);
+    }
+  }, [error]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
-  const handlePageChange = ({ selected }: { selected: number }) => {
-    setPage(selected + 1);
-  };
-
-  const handleSelectMovie = (movie: Movie) => {
+  const handleMovieSelect = (movie: Movie) => {
     setSelectedMovie(movie);
-    document.body.style.overflow = 'hidden';
   };
 
   const handleCloseModal = () => {
     setSelectedMovie(null);
-    document.body.style.overflow = 'auto';
   };
 
-  // Показываем уведомления об ошибках
-  if (isError) {
-    toast.error('Failed to fetch movies. Please try again.');
-    console.error(error);
-  }
-
-  // Показываем уведомление если нет результатов
-  if (moviesData && moviesData.results.length === 0 && query) {
-    toast.error('No movies found for your request.');
-  }
+  const handleSearchSubmit = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+  };
 
   return (
-    <div className={styles.container}>
-      <Toaster position="top-right" />
-      <SearchBar onSubmit={handleSearch} />
+    <div>
+      <h1>Movie Search</h1>
+      
+      <SearchBar onSubmit={handleSearchSubmit} />
+
       {isLoading && <Loader />}
-      {isError && <ErrorMessage />}
-      {moviesData && moviesData.results.length > 0 && (
+
+      {error && <ErrorMessage />}
+
+      {moviesData && (
         <>
-          <MovieGrid movies={moviesData.results} onSelect={handleSelectMovie} />
-          {moviesData.total_pages > 1 && (
-            <ReactPaginate
-              pageCount={moviesData.total_pages}
-              pageRangeDisplayed={5}
-              marginPagesDisplayed={1}
-              onPageChange={handlePageChange}
-              forcePage={page - 1}
-              containerClassName={styles.pagination}
-              activeClassName={styles.active}
-              nextLabel="→"
-              previousLabel="←"
-            />
+          {moviesData.results.length === 0 ? (
+            <div>No movies found for "{searchQuery}"</div>
+          ) : (
+            <>
+              <MovieGrid 
+                movies={moviesData.results} 
+                onSelect={handleMovieSelect} 
+              />
+              
+              {moviesData.total_pages > 1 && (
+                <div>
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <span>Page {currentPage} of {moviesData.total_pages}</span>
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === moviesData.total_pages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
-      {selectedMovie && <MovieModal movie={selectedMovie} onClose={handleCloseModal} />}
+
+      {selectedMovie && (
+        <MovieModal 
+          movie={selectedMovie} 
+          onClose={handleCloseModal} 
+        />
+      )}
     </div>
   );
 };
