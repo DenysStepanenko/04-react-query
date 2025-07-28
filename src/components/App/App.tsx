@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import ReactPaginate from 'react-paginate';
+import toast, { Toaster } from 'react-hot-toast';
 import { fetchMovies } from '../../services/movieService';
 import type { Movie } from '../../types/movie';
 import SearchBar from '../SearchBar/SearchBar';
@@ -16,7 +18,7 @@ const App = () => {
   const {
     data: moviesData,
     isLoading,
-    error,
+    isError,
     isSuccess,
   } = useQuery({
     queryKey: ['movies', searchQuery, currentPage],
@@ -28,18 +30,18 @@ const App = () => {
   // Обработка сообщений в useEffect для предотвращения множественных рендеров
   useEffect(() => {
     if (isSuccess && moviesData?.results && moviesData.results.length === 0) {
-      console.log('No movies found');
+      toast.error(`No movies found for "${searchQuery}"`);
     }
-  }, [isSuccess, moviesData?.results]);
+  }, [isSuccess, moviesData?.results, searchQuery]);
 
   useEffect(() => {
-    if (error) {
-      console.error('Failed to load movies:', error);
+    if (isError) {
+      toast.error('Failed to load movies. Please try again.');
     }
-  }, [error]);
+  }, [isError]);
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+  const handlePageChange = (selectedItem: { selected: number }) => {
+    setCurrentPage(selectedItem.selected + 1);
   };
 
   const handleMovieSelect = (movie: Movie) => {
@@ -57,13 +59,14 @@ const App = () => {
 
   return (
     <div>
+      <Toaster />
       <h1>Movie Search</h1>
       
       <SearchBar onSubmit={handleSearchSubmit} />
 
       {isLoading && <Loader />}
 
-      {error && <ErrorMessage />}
+      {isError && <ErrorMessage />}
 
       {moviesData && (
         <>
@@ -77,21 +80,17 @@ const App = () => {
               />
               
               {moviesData.total_pages > 1 && (
-                <div>
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  <span>Page {currentPage} of {moviesData.total_pages}</span>
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === moviesData.total_pages}
-                  >
-                    Next
-                  </button>
-                </div>
+                <ReactPaginate
+                  pageCount={moviesData.total_pages}
+                  pageRangeDisplayed={5}
+                  marginPagesDisplayed={2}
+                  onPageChange={handlePageChange}
+                  forcePage={currentPage - 1}
+                  containerClassName="pagination"
+                  activeClassName="active"
+                  previousLabel="Previous"
+                  nextLabel="Next"
+                />
               )}
             </>
           )}
